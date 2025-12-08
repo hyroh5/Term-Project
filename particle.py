@@ -1,8 +1,7 @@
 from pygame.math import Vector2
 
-
 class Particle:
-    def __init__(self, pos, vel, radius=6):
+    def __init__(self, pos, vel, radius=7):
         self.pos = Vector2(pos)
         self.vel = Vector2(vel)
         self.acc = Vector2(0, 0)

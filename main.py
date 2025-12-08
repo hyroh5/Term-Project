@@ -10,8 +10,8 @@ clock = pygame.time.Clock()
 
 scene = WaterScene(W, H)
 
-radius = 6
-bubble = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+radius = 7
+bubble = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
 pygame.draw.circle(bubble, (95, 150, 255, 170), (radius, radius), radius)
 
 running = True
@@ -21,6 +21,8 @@ while running:
     for e in pygame.event.get():
         if e.type == pygame.QUIT:
             running = False
+
+        # 수도꼭지 위치 지정
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
             scene.emitter = Vector2(e.pos)
 
