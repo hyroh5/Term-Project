@@ -2,79 +2,97 @@ import random
 from pygame.math import Vector2
 from particle import Particle
 
-
 class WaterScene:
     def __init__(self, w, h):
         self.w = w
         self.h = h
 
         self.particles = []
-        self.max_particles = 1500
+        self.max_particles = 1800
 
         self.gravity = Vector2(0, 900)
         self.drag = 0.12
 
         self.emitter = None
-        self.flow_rate = 260 
+        self.flow_rate = 260
         self.flow_acc = 0
+
+        # Spatial Hashing 설정
+        self.cell_size = 50
+        self.grid = {}
 
         # 경사면 설정
         self.ramp_a = Vector2(0, h * 0.45)
         self.ramp_b = Vector2(w, h - 40)
-
         ab = self.ramp_b - self.ramp_a
         self.ramp_dir = ab.normalize()
         self.ramp_normal = Vector2(-self.ramp_dir.y, self.ramp_dir.x)
 
-        self.ab = ab
-        self.ab_len2 = ab.length_squared()
-
-        dx = self.ramp_b.x - self.ramp_a.x
-        dy = self.ramp_b.y - self.ramp_a.y
-        self.m = dy / dx
+        self.m = (self.ramp_b.y - self.ramp_a.y) / (self.ramp_b.x - self.ramp_a.x)
         self.b_line = self.ramp_a.y - self.m * self.ramp_a.x
 
         self.x_min = min(self.ramp_a.x, self.ramp_b.x)
         self.x_max = max(self.ramp_a.x, self.ramp_b.x)
 
+    # Spatial Hashing
+    def hash_pos(self, pos):
+        return (int(pos.x // self.cell_size), int(pos.y // self.cell_size))
 
-    # 물 생성 
+    def build_grid(self):
+        self.grid = {}
+        for p in self.particles:
+            key = self.hash_pos(p.pos)
+            if key not in self.grid:
+                self.grid[key] = []
+            self.grid[key].append(p)
+
+    def get_nearby_particles(self, p):
+        cx, cy = self.hash_pos(p.pos)
+        nearby = []
+
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                key = (cx + dx, cy + dy)
+                if key in self.grid:
+                    nearby.extend(self.grid[key])
+        return nearby
+
+    # Emitter
     def spawn(self, dt):
         if not self.emitter:
             return
         if len(self.particles) >= self.max_particles:
             return
 
-        # 초당 생성량
         self.flow_acc += self.flow_rate * dt
         n = int(self.flow_acc)
         self.flow_acc -= n
 
         for _ in range(n):
-            if len(self.particles) >= self.max_particles:
-                break
-
-            offset = Vector2(
-                random.uniform(-10, 10),
-                random.uniform(-3, 3)    
-            )
-
+            offset = Vector2(random.uniform(-10, 10), random.uniform(-3, 3))
             vx = random.uniform(-8, 8)
-            vy = random.uniform(-20, -5)  
+            vy = random.uniform(-20, -5)
+            self.particles.append(Particle(self.emitter + offset, Vector2(vx, vy)))
 
-            self.particles.append(
-                Particle(self.emitter + offset, Vector2(vx, vy))
-            )
+    # 경사면 충돌
+    def ramp_collision(self, p):
+        r = p.radius
+        if p.pos.x < self.x_min or p.pos.x > self.x_max:
+            return
 
+        y_line = self.m * p.pos.x + self.b_line
 
-    # 힘 적용
-    def forces(self):
-        for p in self.particles:
-            p.apply_force(self.gravity)
-            p.apply_force(-self.drag * p.vel)
+        if p.pos.y + r > y_line:
+            p.pos.y = y_line - r
 
+            vn = p.vel.dot(self.ramp_normal)
+            if vn < 0:
+                p.vel -= vn * self.ramp_normal
 
-    # 화면 경계 충돌
+            g_tan = self.gravity.dot(self.ramp_dir) * self.ramp_dir
+            p.apply_force(g_tan * 1.3)
+
+    # 맵 충돌
     def world_collision(self, p):
         r = p.radius
 
@@ -93,33 +111,12 @@ class WaterScene:
             if p.vel.x > 0:
                 p.vel.x = 0
 
-
-    # 경사면 충돌 + Tangent Sliding
-    def ramp_collision(self, p):
-        r = p.radius
-
-        if p.pos.x < self.x_min or p.pos.x > self.x_max:
-            return
-
-        y_line = self.m * p.pos.x + self.b_line
-
-        if p.pos.y + r > y_line:
-            p.pos.y = y_line - r
-
-            vn = p.vel.dot(self.ramp_normal)
-            if vn < 0:
-                p.vel -= vn * self.ramp_normal
-
-            g_tan = self.gravity.dot(self.ramp_dir) * self.ramp_dir
-            p.apply_force(g_tan)
-
-
     # 업데이트
     def update(self, dt):
         self.spawn(dt)
-        self.forces()
+        self.build_grid()
 
         for p in self.particles:
-            p.integrate(dt)
+            p.integrate(dt, self.gravity, self.drag)
             self.world_collision(p)
             self.ramp_collision(p)

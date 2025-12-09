@@ -10,7 +10,13 @@ class Particle:
     def apply_force(self, f):
         self.acc += f
 
-    def integrate(self, dt):
-        self.vel += self.acc * dt
-        self.pos += self.vel * dt
-        self.acc.xy = (0, 0)
+    # 중력 + 마찰력
+    def compute_acc(self, gravity, drag):
+        return gravity + (-drag * self.vel)
+
+    # VerLet Integration
+    def integrate(self, dt, gravity, drag):
+        self.pos += self.vel * dt + 0.5 * self.acc * dt * dt
+        new_acc = self.compute_acc(gravity, drag)
+        self.vel += 0.5 * (self.acc + new_acc) * dt
+        self.acc = new_acc
