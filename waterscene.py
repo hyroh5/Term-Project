@@ -74,6 +74,31 @@ class WaterScene:
             vy = random.uniform(-20, -5)
             self.particles.append(Particle(self.emitter + offset, Vector2(vx, vy)))
 
+    # 입자간 충돌
+    def particle_relaxation(self, p, neighbors):
+        # 입자간에 유지해야 하는 최소 거리
+        min_dist = p.radius * 1.1
+
+        for n in neighbors:
+            if n is p:
+                continue
+
+            d = p.pos - n.pos
+            dist_sq = d.length_squared()
+            if dist_sq == 0:
+                continue
+
+            if dist_sq < min_dist * min_dist:
+                dist = dist_sq ** 0.5
+                overlap = (min_dist - dist) * 0.3
+
+                # p를 n으로부터 멀어지게 하는 보정 벡터
+                correction = (d / dist) * overlap
+
+                p.pos += correction
+                n.pos -= correction * 0.3   # optional 안정화
+
+
     # 경사면 충돌
     def ramp_collision(self, p):
         r = p.radius
@@ -118,5 +143,9 @@ class WaterScene:
 
         for p in self.particles:
             p.integrate(dt, self.gravity, self.drag)
+
+            neighbors = self.get_nearby_particles(p)
+            self.particle_relaxation(p, neighbors)
+
             self.world_collision(p)
             self.ramp_collision(p)
